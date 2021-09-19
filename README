@@ -1,0 +1,9 @@
+# Bibchecker
+ Simple script which checks the Stadtbibliothek Stuttgart Website if Media can be borrowed
+
+ # Usage
+ ## NixOS
+ `nix-shell --run 'python ./bibchecker.py SAK02068634'`
+ ## Other OS
+ install the python libraries `beautifulsoup4` `requests` `docopt` for
+ python38, run `python bibchecker.py SAK02068634`

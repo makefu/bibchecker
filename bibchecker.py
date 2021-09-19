@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" usage: doit [options] IDS...
+""" usage: bibchecker [options] IDS...
 
 options:
     --all           show all availabilities, not only media which can be borrowed
