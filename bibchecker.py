@@ -2,7 +2,9 @@
 """ usage: bibchecker [options] IDS...
 
 options:
-    --all           show all availabilities, not only media which can be borrowed
+    --all               show all availabilities, not only media which can be borrowed
+    --only-available    only show available books
+    --bib=BIB1,BIB2...  filter for specific libraries, skip the rest
 """
 from bs4 import BeautifulSoup
 from pprint import pprint
@@ -58,11 +60,12 @@ def parseid(ident):
 def main():
     args = docopt(__doc__)
     ids = args['IDS']
+    bibfilter = args['--bib'].split(',') if args['--bib'] else []
     for entry in parse_all_ids(ids):
-        print(f"{entry['id']}: {entry['Titel']}")
-        status = [ av for av in entry['status'] if av['can_be_borrowed'] or args['--all'] ]
-        if not status:
-            print("  Unavailable")
+        status = [ av for av in entry['status'] if (av['can_be_borrowed'] or args['--all']) and ((av['bib'] in bibfilter) or (not bibfilter)) ]
+        if not args['--only-available'] or status:
+            print(f"{entry['id']}: {entry['Titel']}")
+
         for av in status:
             print(f"  {av['bib']} - {av['available']}")
 
