@@ -10,15 +10,16 @@ from bs4 import BeautifulSoup
 from pprint import pprint
 import requests
 from docopt import docopt
+from typing import Iterable,Dict,Any
 
 url="https://opac.sbs.stuttgart.de/aDISWeb/app?service=direct/0/Home/$DirectLink&sp=SOPAC&sp={id}"
 
-def parse_all_ids(ids):
+def parse_all_ids(ids:Iterable[str] ) -> Iterable[Dict[str,Any]]:
     for id in ids:
         yield parseid(id)
 
-def parseid(ident):
-    entry = {"id":ident}
+def parseid(ident:str ) -> Dict[Any,Any]:
+    entry:Dict[str,Any] = {"id":ident}
     ret = requests.get(url.format(id=ident))
     data = BeautifulSoup(ret.text,features="html.parser")
     tab = data.find("table",{"class":"gi"})
@@ -54,10 +55,12 @@ def parseid(ident):
                 "can_be_borrowed": can_be_borrowed,
                 "reservation":reservation
                 })
+
     entry['status'] = av
+
     return entry
 
-def main():
+def main() -> None:
     args = docopt(__doc__)
     ids = args['IDS']
     bibfilter = args['--bib'].split(',') if args['--bib'] else []
