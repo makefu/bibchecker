@@ -12,7 +12,8 @@ import requests
 from docopt import docopt
 from typing import Iterable,Dict,Any
 
-url="https://opac.sbs.stuttgart.de/aDISWeb/app?service=direct/0/Home/$DirectLink&sp=SOPAC&sp={id}"
+#url="https://opac.sbs.stuttgart.de/aDISWeb/app?service=direct/0/Home/$DirectLink&sp=SOPAC&sp={id}"
+url="https://stadtbibliothek-stuttgart.de/aDISWeb/app?service=direct%2F0%2FHome%2F%24DirectLink&sp=SOPAC&sp={id}"
 
 def parse_all_ids(ids:Iterable[str] ) -> Iterable[Dict[str,Any]]:
     for id in ids:
@@ -20,6 +21,7 @@ def parse_all_ids(ids:Iterable[str] ) -> Iterable[Dict[str,Any]]:
 
 def parseid(ident:str ) -> Dict[Any,Any]:
     entry:Dict[str,Any] = {"id":ident}
+    #print(url.format(id=ident))
     ret = requests.get(url.format(id=ident))
     data = BeautifulSoup(ret.text,features="html.parser")
     tab = data.find("table",{"class":"gi"})
