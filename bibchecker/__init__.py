@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
-""" usage: bibchecker [options] IDS...
+""" usage: bibchecker [options] [IDS...]
 
 options:
     --all               show all availabilities, not only media which can be borrowed
     --only-available    only show available books
     --bib=BIB1,BIB2...  filter for specific libraries, skip the rest
+    -f=FILE             input file with all the IDs to supervise.
+                        format will ignore all lines starting with hash-sign
+                        input file will ignore all IDs given via cli
+
+input file format example:
+
+# super cool books
+AK00119197
+
+# super cool games
+SAK02110593 space escape
+SAK02174818 zeitstrudel
+# ende
+
 """
 from bs4 import BeautifulSoup
 from pprint import pprint
@@ -62,10 +76,31 @@ def parseid(ident:str ) -> Dict[Any,Any]:
 
     return entry
 
+def load_ids(f:str):
+    with open(f) as fd:
+        for line in fd.readlines():
+            line = line.split(" ")[0].upper().strip()
+            if line.startswith("#"):
+                continue
+            if not line:
+                continue
+            if line.startswith("AK"):
+                line = f"S{line}"
+            if not line.startswith("SAK"):
+                print("cannot parse line '{line}' - not starting with SAK or AK")
+            else:
+                yield line
+
 def main() -> None:
     args = docopt(__doc__)
-    ids = args['IDS']
     bibfilter = args['--bib'].split(',') if args['--bib'] else []
+
+    if  args['-f']:
+        ids = list(load_ids(args['-f']))
+    else:
+        ids = args['IDS']
+    print(ids)
+
     for entry in parse_all_ids(ids):
         status = [ av for av in entry['status'] if (av['can_be_borrowed'] or args['--all']) and ((av['bib'] in bibfilter) or (not bibfilter)) ]
         if not args['--only-available'] or status:
