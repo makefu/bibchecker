@@ -25,6 +25,7 @@ from pprint import pprint
 import requests
 from docopt import docopt
 from typing import Iterable,Dict,Any
+from collections import defaultdict
 
 #url="https://opac.sbs.stuttgart.de/aDISWeb/app?service=direct/0/Home/$DirectLink&sp=SOPAC&sp={id}"
 url="https://stadtbibliothek-stuttgart.de/aDISWeb/app?service=direct%2F0%2FHome%2F%24DirectLink&sp=SOPAC&sp={id}"
@@ -53,26 +54,40 @@ def parseid(ident:str ) -> Dict[Any,Any]:
         #print(row)
     tab = data.find("table",{"class":"rTable_table"})
     av = []
+    row_mapping = {
+            "Bibliothek":"bib",
+            "Standort":"standort",
+            "Signatur":"sig",
+            "Bestellmöglichkeit":"method",
+            "Verfügbarkeit": "available",
+            "Reservierung": "reservation",
+            }
+    available_rows = []
+    for row in tab.find('thead').find_all('th'):
+        row = row.get_text().strip()
+        # print(row)
+        available_rows.append(row_mapping[row])
     for row in tab.find('tbody').find_all('tr'):
-        try:
-            bib,standort,sig,available,reservation = [ a.get_text().strip() for a in row.find_all('td') ]
-        except:
-            bib,standort,available,reservation = [ a.get_text().strip() for a in row.find_all('td') ]
-            sig = None
-        if available.startswith("Ausgeliehen") or available.startswith("Ist nur vor Ort nutzbar") or available.startswith("Nicht im Regal"):
-            can_be_borrowed = False
+        item = defaultdict(lambda: None) 
+        for idx,col in enumerate(row.find_all('td')):
+            item[available_rows[idx]] = col.get_text().strip()
+        #pprint(item)
+        available =  item['available']
+
+
+        if available.startswith("Ausgeliehen") or \
+           available.startswith("Ist nur vor Ort nutzbar") or \
+           available.startswith("Nicht im Regal") or \
+           available.startswith("zur Zeit vermisst"):
+            item['can_be_borrowed'] = False
         else:
-            can_be_borrowed = True
-        av.append({
-                "bib": bib,
-                "standort": standort,
-                "sig":sig,
-                "available":available,
-                "can_be_borrowed": can_be_borrowed,
-                "reservation":reservation
-                })
+            item['can_be_borrowed'] = True
+
+        av.append(item)
 
     entry['status'] = av
+    #from pprint import pprint
+    #pprint(entry)
 
     return entry
 
@@ -107,7 +122,7 @@ def main() -> None:
             print(f"{entry['id']}: {entry['Titel']}")
 
         for av in status:
-            print(f"  {av['bib']} - {av['available']}")
+            print(f"  {av['bib']} ({av['standort'] or 'No Data'}) - {av['available']}")
 
 if __name__ == "__main__":
     main()
