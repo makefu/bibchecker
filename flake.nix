@@ -10,16 +10,19 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        bibchecker = pkgs.python3Packages.buildPythonApplication {
+        python = pkgs.python3;
+        bibchecker = python.pkgs.buildPythonApplication {
           pname = "bibchecker";
           version = "0.1.0";
           src = ./.;
-          propagatedBuildInputs = with pkgs.python3Packages; [
+          pyproject = true;
+          build-system = with python.pkgs; [ setuptools ];
+          propagatedBuildInputs = with python.pkgs; [
             beautifulsoup4
             requests
             docopt
           ];
-          nativeBuildInputs = with pkgs.python3Packages; [
+          nativeBuildInputs = with python.pkgs; [
             mypy
           ];
           checkPhase = ''
@@ -32,8 +35,8 @@
         packages.bibchecker = bibchecker;
 
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs.python3Packages; [
-            python3
+          buildInputs = with python.pkgs; [
+            python
             beautifulsoup4
             requests
             docopt
