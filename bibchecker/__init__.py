@@ -135,6 +135,53 @@ def filter_ids(iddata: Iterable[Dict[str, Any]], all_data: bool = False, only_av
             yield entry
 
 
+def update_input_file(filename: str, entries: List[Dict[str, Any]]) -> None:
+    """Update the input file with titles from parsed entries."""
+    # Build a mapping from ID to title
+    id_to_title: Dict[str, str] = {}
+    for entry in entries:
+        eid = entry.get('id', '')
+        title = entry.get('Titel', '')
+        if eid and title:
+            id_to_title[eid] = title
+            # Also map without 'S' prefix for AK entries
+            if eid.startswith('SAK'):
+                id_to_title[eid[1:]] = title  # AK version
+
+    # Read original file and update lines
+    with open(filename, 'r') as fd:
+        lines = fd.readlines()
+
+    updated_lines: List[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            updated_lines.append(line)
+            continue
+
+        # Extract the ID (first word)
+        parts = stripped.split(' ', 1)
+        raw_id = parts[0].upper()
+
+        # Normalize ID
+        if raw_id.startswith('AK'):
+            lookup_id = f'S{raw_id}'
+        elif raw_id.startswith('javascript:htmlOnLink'):
+            lookup_id = raw_id.split("'")[1]
+        else:
+            lookup_id = raw_id
+
+        # Update with title if found
+        if lookup_id in id_to_title:
+            updated_lines.append(f'{parts[0]} {id_to_title[lookup_id]}\n')
+        else:
+            updated_lines.append(line)
+
+    # Write back
+    with open(filename, 'w') as fd:
+        fd.writelines(updated_lines)
+
+
 def plain_print(iddata: Iterable[Dict[str, Any]], all_ids: List[str], sort_by: str = "item") -> None:
     if sort_by == "item":
         for entry in iddata:
@@ -182,33 +229,39 @@ def html_print(iddata: Iterable[Dict[str, Any]], all_ids: List[str], sort_by: st
     <style>
         body { font-family: system-ui, sans-serif; margin: 20px; background: #f5f5f5; }
         h1 { color: #333; margin-bottom: 15px; }
-        h2 { color: #444; margin: 20px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #ddd; }
-        .item { margin: 4px 0; padding: 6px 10px; background: white; border-radius: 4px; display: flex; gap: 10px; align-items: center; }
-        .title { font-weight: 600; flex: 1; }
-        .bib { color: #666; min-width: 120px; }
-        .loc { color: #888; font-size: 0.9em; min-width: 100px; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th { background: #eee; text-align: left; padding: 8px; border-bottom: 2px solid #999; }
+        td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+        .title { font-weight: 600; background: #fafafa; border-top: 2px solid #666; }
+        .first { border-top: 2px solid #666; }
         .ok { color: #228b22; font-weight: 600; }
         .no { color: #dc143c; }
+        .loc { color: #888; font-size: 0.9em; }
         .ts { color: #999; font-size: 0.8em; margin-top: 20px; }
     </style>
 </head>
 <body>
 <h1>📚 Stadtbibliothek Stuttgart</h1>
+<table>
+<tr><th>Titel</th><th>Bibliothek</th><th>Standort</th><th>Status</th></tr>
 """)
 
     if sort_by == "item":
         for entry in iddata:
             title = entry.get('Titel', 'Unbekannt')
-            html_parts.append(f"<h2>{title}</h2>\n")
-            if entry.get('status'):
-                for av in entry['status']:
+            statuses = entry.get('status', [])
+            if statuses:
+                for i, av in enumerate(statuses):
                     bib = av.get('bib', '?')
                     loc = av.get('standort') or '-'
                     avail = av.get('available', '?')
                     cls = 'ok' if av.get('can_be_borrowed') else 'no'
-                    html_parts.append(f'<div class="item"><span class="bib">{bib}</span><span class="loc">{loc}</span><span class="{cls}">{avail}</span></div>\n')
+                    if i == 0:
+                        html_parts.append(f'<tr><td class="title" rowspan="{len(statuses)}">{title}</td><td class="first">{bib}</td><td class="first loc">{loc}</td><td class="first {cls}">{avail}</td></tr>\n')
+                    else:
+                        html_parts.append(f'<tr><td>{bib}</td><td class="loc">{loc}</td><td class="{cls}">{avail}</td></tr>\n')
             else:
-                html_parts.append('<div class="item no">Keine Daten</div>\n')
+                html_parts.append(f'<tr><td class="title">{title}</td><td colspan="3" class="first no">Keine Daten</td></tr>\n')
 
     elif sort_by == "bib":
         bib_entries: Dict[str, List[Dict[str, Any]]] = {}
@@ -221,15 +274,16 @@ def html_print(iddata: Iterable[Dict[str, Any]], all_ids: List[str], sort_by: st
                 bib_entries[bib].append(status)
 
         for library, items in sorted(bib_entries.items()):
-            html_parts.append(f"<h2>🏛️ {library}</h2>\n")
+            html_parts.append(f'<tr><td colspan="4" style="background:#ddd;font-weight:600;padding:10px;">🏛️ {library}</td></tr>\n')
             for item in items:
                 entry = item.get('entry', {})
                 title = entry.get('Titel', 'Unbekannt')
                 loc = item.get('standort') or '-'
                 avail = item.get('available', '?')
                 cls = 'ok' if item.get('can_be_borrowed') else 'no'
-                html_parts.append(f'<div class="item"><span class="title">{title}</span><span class="loc">{loc}</span><span class="{cls}">{avail}</span></div>\n')
+                html_parts.append(f'<tr><td class="title">{title}</td><td>-</td><td class="loc">{loc}</td><td class="{cls}">{avail}</td></tr>\n')
 
+    html_parts.append('</table>\n')
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
     html_parts.append(f'<div class="ts">Stand: {timestamp}</div>\n</body></html>')
     
@@ -242,17 +296,24 @@ def main() -> None:
     args = docopt(__doc__)
     bibfilter = args['--bib'].split(',') if args['--bib'] else []
 
-    if  args['-f']:
-        ids = list(load_ids(args['-f']))
+    input_file = args['-f']
+    if input_file:
+        ids = list(load_ids(input_file))
     else:
         ids = args['IDS']
     # print(ids)
-    filtered_data = filter_ids(parse_all_ids(ids),args['--all'],args['--only-available'])
+    # Collect all entries first so we can both output and update the file
+    all_entries = list(parse_all_ids(ids))
+    filtered_data = list(filter_ids(iter(all_entries), args['--all'], args['--only-available'], bibfilter))
     # print(args)
     if args['--format'] == "plain":
-        plain_print(filtered_data,ids,args["--sort-by"])
+        plain_print(iter(filtered_data), ids, args["--sort-by"])
     elif args['--format'] == "html":
-        html_print(filtered_data,ids,args["--sort-by"])
+        html_print(iter(filtered_data), ids, args["--sort-by"])
+
+    # Update input file with titles
+    if input_file:
+        update_input_file(input_file, all_entries)
 
 
 
