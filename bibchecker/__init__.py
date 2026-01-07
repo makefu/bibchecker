@@ -1,444 +1,111 @@
 #!/usr/bin/env python3
-""" usage: bibchecker [options] [IDS...]
-
-options:
-    --all               show all libraries even when media which cannot be borrowed (default is to only show libraries which have book available)
-    --only-available    show books only if they are actually available (default is to print all books)
-    --bib=BIB1,BIB2...  filter for specific libraries, skip the rest
-    --sort-by=THING     sort by: item, bib [Default: item]
-    --format=FORMAT     print format plain,html [Default: plain]
-    -f=FILE             input file with all the IDs to supervise.
-                        format will ignore all lines starting with hash-sign
-                        input file will ignore all IDs given via cli
-    --save-db=FILE      save parsed data as JSON to database file
-    --load-db=FILE      load data from JSON database instead of fetching
-
-input file format example:
-
-    # super cool books
-    AK00119197
-
-    # super cool games
-    SAK02110593 space escape
-    SAK02174818 zeitstrudel
-    # ende
-
 """
-import json
-from bs4 import BeautifulSoup
-from pprint import pprint
-import requests  # type: ignore[import-untyped]
-from docopt import docopt
-from typing import Iterable, Dict, Any, Optional, Generator, List
-from collections import defaultdict
+bibchecker - Check library availability for items.
 
-# Stuttgart library URL
-url_stuttgart = "https://stadtbibliothek-stuttgart.de/aDISWeb/app?service=direct%2F0%2FHome%2F%24DirectLink&sp=SOPAC&sp={id}"
-# Remseck library URL
-url_remseck = "https://mt-remseck.lmscloud.net/cgi-bin/koha/opac-detail.pl?biblionumber={id}"
+Usage:
+  bibchecker [options] [IDS...]
 
+Options:
+  -f=FILE              Input file with IDs to check
+  --all                Display non-borrowable items as well
+  --only-available     Only show items that are available in at least one location
+  -h --help            Show this help
+  --bib=BIB            Filter for a list of libraries (comma-separated)
+  --format=FORMAT      Output format: plain, html [default: plain]
+  --sort-by=SORT       Sort by item or bib [default: item]
+  --update             Update input file with fetched titles
+  --save-db=FILE       Save fetched data to JSON file
+  --load-db=FILE       Load data from JSON file instead of fetching
 
-def parse_all_ids(ids: Iterable[str]) -> Iterable[Dict[str, Any]]:
-    for id in ids:
-        yield parseid(id)
+Examples:
+  bibchecker -f mybooks.txt
+  bibchecker --format html -f mybooks.txt > report.html
+  bibchecker -f mybooks.txt --save-db=cache.json
+  bibchecker --load-db=cache.json --format html
 
+Supported libraries:
+  - Stuttgart (Stadtbibliothek Stuttgart): IDs starting with SAK or AK
+  - Remseck (Mediathek Remseck): Numeric IDs
+"""
+from docopt import docopt  # type: ignore[import-untyped]
+from typing import Dict, Any, List, Generator
 
-def parseid(ident: str) -> Dict[str, Any]:
-    """Parse an ID - routes to Stuttgart or Remseck parser based on ID format."""
-    # Numeric-only IDs are Remseck, SAK/AK are Stuttgart
-    if ident.isdigit():
-        return parseid_remseck(ident)
-    else:
-        return parseid_stuttgart(ident)
-
-
-def parseid_stuttgart(ident: str) -> Dict[str, Any]:
-    """Parse Stuttgart library entry."""
-    entry: Dict[str, Any] = {"id": ident, "library": "stuttgart"}
-    ret = requests.get(url_stuttgart.format(id=ident))
-    data = BeautifulSoup(ret.text, features="html.parser")
-    tab = data.find("table", {"class": "gi"})
-    if tab is not None:
-        for row in tab.find_all('tr'):
-            try:
-                right_elem = row.find("td", {"class": "spalterechts"})
-                left_elem = row.find("th")
-                if right_elem is None or left_elem is None:
-                    continue
-                right = right_elem.get_text().strip()
-                left = left_elem.get_text().strip()
-                if left.startswith("Titel"):  # cleanup for broken html
-                    left = "Titel"
-                    try:
-                        entry["Titel"], entry["TitelExtra"] = right.replace("Titel ", "").split(" / ")
-                    except:
-                        entry["Titel"] = right
-                elif left:
-                    entry[left] = right
-            except:
-                pass
-    tab = data.find("table", {"class": "rTable_table"})
-    av: List[Dict[str, Any]] = []
-    row_mapping = {
-            "Bibliothek": "bib",
-            "Standort": "standort",
-            "Signatur": "sig",
-            "Bestellmöglichkeit": "method",
-            "Verfügbarkeit": "available",
-            "Reservierung": "reservation",
-            }
-    available_rows: List[str] = []
-    if tab is not None:
-        thead = tab.find('thead')
-        tbody = tab.find('tbody')
-        if thead is not None:
-            for row in thead.find_all('th'):
-                row_text = row.get_text().strip()
-                available_rows.append(row_mapping[row_text])
-
-        if tbody is not None:
-            for row in tbody.find_all('tr'):
-                item: Dict[str, Any] = {}
-                for idx, col in enumerate(row.find_all('td')):
-                    item[available_rows[idx]] = col.get_text().strip()
-                available = item.get('available', '')
-
-                if available.startswith("Ausgeliehen") or \
-                   available.startswith("Ist nur vor Ort nutzbar") or \
-                   available.startswith("Nicht im Regal") or \
-                   available.startswith("noch nicht im Haus") or \
-                   available.startswith("Reserviert") or \
-                   available.startswith("zur Zeit vermisst"):
-                    item['can_be_borrowed'] = False
-                else:
-                    item['can_be_borrowed'] = True
-
-                av.append(item)
-
-    entry['status'] = av
-    return entry
+# Import from modules
+from bibchecker.parsers import parse_id, PARSERS
+from bibchecker.output import plain_print, html_print
+from bibchecker.database import save_database, load_database
+from bibchecker.filters import filter_ids
+from bibchecker.input import load_ids, update_input_file
 
 
-def parseid_remseck(ident: str) -> Dict[str, Any]:
-    """Parse Remseck library entry."""
-    entry: Dict[str, Any] = {"id": ident, "library": "remseck"}
-    ret = requests.get(url_remseck.format(id=ident))
-    data = BeautifulSoup(ret.text, features="html.parser")
-
-    # Get title from h1.title
-    title_elem = data.find("h1", {"class": "title"})
-    if title_elem:
-        # Get text but exclude hidden elements
-        title_text = title_elem.get_text(separator=" ", strip=True)
-        # Clean up the title (remove author part after /)
-        if " / " in title_text:
-            entry["Titel"], entry["TitelExtra"] = title_text.split(" / ", 1)
-        else:
-            entry["Titel"] = title_text
-
-    # Get holdings from table#holdingst
-    av: List[Dict[str, Any]] = []
-    holdings_table = data.find("table", {"id": "holdingst"})
-    if holdings_table:
-        tbody = holdings_table.find("tbody")
-        if tbody:
-            for row in tbody.find_all("tr"):
-                item: Dict[str, Any] = {}
-
-                # Get library/location from td.location
-                loc_cell = row.find("td", {"class": "location"})
-                if loc_cell:
-                    # Library name is in the anchor with class library_info
-                    lib_link = loc_cell.find("a", {"class": "library_info"})
-                    if lib_link:
-                        item["bib"] = lib_link.get_text(strip=True).replace("\n", " ").strip()
-                        # Remove the info icon text
-                        if item["bib"].startswith("ⓘ"):
-                            item["bib"] = item["bib"][1:].strip()
-
-                    # Standort/shelving location
-                    shelf = loc_cell.find("span", {"class": "shelvingloc"})
-                    if shelf:
-                        item["standort"] = shelf.get_text(strip=True)
-
-                # Get call number/signature
-                callno_cell = row.find("td", {"class": "call_no"})
-                if callno_cell:
-                    item["sig"] = callno_cell.get_text(strip=True).split("(")[0].strip()
-
-                # Get status
-                status_cell = row.find("td", {"class": "status"})
-                if status_cell:
-                    status_span = status_cell.find("span", {"class": "item-status"})
-                    if status_span:
-                        item["available"] = status_span.get_text(strip=True)
-                    else:
-                        # Check for InStock schema
-                        instock = status_cell.find("link", {"href": "http://schema.org/InStock"})
-                        if instock:
-                            item["available"] = "Verfügbar"
-                        else:
-                            item["available"] = "Unbekannt"
-
-                # Get due date
-                duedate_cell = row.find("td", {"class": "date_due"})
-                if duedate_cell:
-                    duedate = duedate_cell.get_text(strip=True)
-                    if duedate and item.get("available"):
-                        item["available"] = f"{item['available']} - Fällig am: {duedate}"
-
-                # Determine if can be borrowed
-                avail_text = item.get('available', '')
-                if "Ausgeliehen" in avail_text or \
-                   "checkedout" in avail_text.lower() or \
-                   "OutOfStock" in str(status_cell):
-                    item['can_be_borrowed'] = False
-                else:
-                    item['can_be_borrowed'] = True
-
-                av.append(item)
-
-    entry['status'] = av
-    return entry
-
-def load_ids(f: str) -> Generator[str, None, None]:
-    with open(f) as fd:
-        for line in fd.readlines():
-            raw_line = line.split(" ")[0].strip()
-            line_upper = raw_line.upper()
-            if line_upper.startswith("#"):
-                continue
-            elif not raw_line:
-                continue
-            elif raw_line.isdigit():
-                # Numeric ID = Remseck library
-                yield raw_line
-            elif line_upper.startswith("AK"):
-                line_upper = f"S{line_upper}"
-                yield line_upper
-            elif line_upper.startswith('JAVASCRIPT:HTMLONLINK'):
-                yield raw_line.split("'")[1]
-            elif line_upper.startswith("SAK"):
-                yield line_upper
-            else:
-                print(f"cannot parse line '{raw_line}' - not starting with SAK, AK, or numeric ID")
-def filter_ids(iddata: Iterable[Dict[str, Any]], all_data: bool = False, only_available: bool = False, bibfilter: Optional[List[str]] = None) -> Generator[Dict[str, Any], None, None]:
-    if not bibfilter:
-        bibfilter = []
-    for entry in iddata:
-
-        # filter out entries from status if unwanted
-        entry['status'] = [av for av in entry['status'] if (av.get('can_be_borrowed') or all_data) and ((av.get('bib') in bibfilter) or (not bibfilter))]
-        # skip entries with no libraries where the book can be borrowed or only_available is unset
-        if not only_available or entry['status']:
-            yield entry
-
-
-def update_input_file(filename: str, entries: List[Dict[str, Any]]) -> None:
-    """Update the input file with titles from parsed entries."""
-    # Build a mapping from ID to title
-    id_to_title: Dict[str, str] = {}
-    for entry in entries:
-        eid = entry.get('id', '')
-        title = entry.get('Titel', '')
-        if eid and title:
-            id_to_title[eid] = title
-            # Also map without 'S' prefix for AK entries
-            if eid.startswith('SAK'):
-                id_to_title[eid[1:]] = title  # AK version
-
-    # Read original file and update lines
-    with open(filename, 'r') as fd:
-        lines = fd.readlines()
-
-    updated_lines: List[str] = []
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            updated_lines.append(line)
+def parse_all_ids(ids: List[str]) -> Generator[Dict[str, Any], None, None]:
+    """Parse all IDs and yield entry dicts."""
+    for ident in ids:
+        try:
+            yield parse_id(ident)
+        except ValueError as e:
+            print(f"Error: {e}")
             continue
-
-        # Extract the ID (first word)
-        parts = stripped.split(' ', 1)
-        raw_id = parts[0].upper()
-
-        # Normalize ID
-        if raw_id.startswith('AK'):
-            lookup_id = f'S{raw_id}'
-        elif raw_id.startswith('javascript:htmlOnLink'):
-            lookup_id = raw_id.split("'")[1]
-        else:
-            lookup_id = raw_id
-
-        # Update with title if found
-        if lookup_id in id_to_title:
-            updated_lines.append(f'{parts[0]} {id_to_title[lookup_id]}\n')
-        else:
-            updated_lines.append(line)
-
-    # Write back
-    with open(filename, 'w') as fd:
-        fd.writelines(updated_lines)
-
-
-def plain_print(iddata: Iterable[Dict[str, Any]], all_ids: List[str], sort_by: str = "item") -> None:
-    if sort_by == "item":
-        for entry in iddata:
-            try:
-                print()
-                print(f"{entry['Titel']}")
-            except Exception as e:
-                print(f"!! problem with {entry}")
-                continue
-
-            for av in entry['status']:
-                print(f"  {av.get('bib')} ({av.get('standort') or 'No Data'}) - {av.get('available')}")
-    elif sort_by == "bib":
-        print(f"Gathering {len(all_ids)} entries first ... please wait")
-        bib_entries: Dict[str, List[Dict[str, Any]]] = {}
-        for ident, entry in enumerate(iddata):
-            print(ident, end=" ", flush=True)
-            for status in entry['status']:
-                status['entry'] = entry
-                bib = status.get('bib', 'Unknown')
-                if bib not in bib_entries:
-                    bib_entries[bib] = []
-                bib_entries[bib].append(status)
-
-        print("done")
-        for k, vals in bib_entries.items():
-            print()
-            print(f"Library '{k}'")
-
-            for v in vals:
-                entry = v['entry']
-                print(f"  {entry['Titel']} - {v.get('standort')} - {v.get('available')}")
-
-
-def html_print(iddata: Iterable[Dict[str, Any]], all_ids: List[str], sort_by: str = "item") -> None:
-    from datetime import datetime
-    html_parts: List[str] = []
-    
-    # Compact HTML with minimal CSS
-    html_parts.append("""<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>Bibliothek Status</title>
-    <style>
-        body { font-family: system-ui, sans-serif; margin: 20px; background: #f5f5f5; }
-        h1 { color: #333; margin-bottom: 15px; }
-        table { border-collapse: collapse; width: 100%; background: white; }
-        th { background: #eee; text-align: left; padding: 8px; border-bottom: 2px solid #999; }
-        td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-        .title { font-weight: 600; background: #fafafa; border-top: 2px solid #666; }
-        .first { border-top: 2px solid #666; }
-        .ok { color: #228b22; font-weight: 600; }
-        .no { color: #dc143c; }
-        .loc { color: #888; font-size: 0.9em; }
-        .ts { color: #999; font-size: 0.8em; margin-top: 20px; }
-    </style>
-</head>
-<body>
-<h1>📚 Stadtbibliothek Stuttgart</h1>
-<table>
-<tr><th>Titel</th><th>Bibliothek</th><th>Standort</th><th>Status</th></tr>
-""")
-
-    if sort_by == "item":
-        for entry in iddata:
-            title = entry.get('Titel', 'Unbekannt')
-            statuses = entry.get('status', [])
-            if statuses:
-                for i, av in enumerate(statuses):
-                    bib = av.get('bib', '?')
-                    loc = av.get('standort') or '-'
-                    avail = av.get('available', '?')
-                    cls = 'ok' if av.get('can_be_borrowed') else 'no'
-                    if i == 0:
-                        html_parts.append(f'<tr><td class="title" rowspan="{len(statuses)}">{title}</td><td class="first">{bib}</td><td class="first loc">{loc}</td><td class="first {cls}">{avail}</td></tr>\n')
-                    else:
-                        html_parts.append(f'<tr><td>{bib}</td><td class="loc">{loc}</td><td class="{cls}">{avail}</td></tr>\n')
-            else:
-                html_parts.append(f'<tr><td class="title">{title}</td><td colspan="3" class="first no">Keine Daten</td></tr>\n')
-
-    elif sort_by == "bib":
-        bib_entries: Dict[str, List[Dict[str, Any]]] = {}
-        for entry in iddata:
-            for status in entry['status']:
-                status['entry'] = entry
-                bib = status.get('bib', 'Unbekannt')
-                if bib not in bib_entries:
-                    bib_entries[bib] = []
-                bib_entries[bib].append(status)
-
-        for library, items in sorted(bib_entries.items()):
-            html_parts.append(f'<tr><td colspan="4" style="background:#ddd;font-weight:600;padding:10px;">🏛️ {library}</td></tr>\n')
-            for item in items:
-                entry = item.get('entry', {})
-                title = entry.get('Titel', 'Unbekannt')
-                loc = item.get('standort') or '-'
-                avail = item.get('available', '?')
-                cls = 'ok' if item.get('can_be_borrowed') else 'no'
-                html_parts.append(f'<tr><td class="title">{title}</td><td>-</td><td class="loc">{loc}</td><td class="{cls}">{avail}</td></tr>\n')
-
-    html_parts.append('</table>\n')
-    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
-    html_parts.append(f'<div class="ts">Stand: {timestamp}</div>\n</body></html>')
-    
-    print("".join(html_parts))
-            
-
-
-
-def save_database(filename: str, entries: List[Dict[str, Any]]) -> None:
-    """Save entries to JSON database file."""
-    with open(filename, 'w', encoding='utf-8') as fd:
-        json.dump(entries, fd, ensure_ascii=False, indent=2)
-
-
-def load_database(filename: str) -> List[Dict[str, Any]]:
-    """Load entries from JSON database file."""
-    with open(filename, 'r', encoding='utf-8') as fd:
-        data: List[Dict[str, Any]] = json.load(fd)
-    return data
 
 
 def main() -> None:
+    """Main entry point."""
     args = docopt(__doc__)
-    bibfilter = args['--bib'].split(',') if args['--bib'] else []
 
-    input_file = args['-f']
-    load_db = args['--load-db']
-    save_db = args['--save-db']
-
-    # Load data either from database or by fetching
-    if load_db:
-        all_entries = load_database(load_db)
-        ids = [e.get('id', '') for e in all_entries]
+    # Load entries from database or fetch from web
+    if args["--load-db"]:
+        entries = load_database(args["--load-db"])
+        all_ids: List[str] = [e["id"] for e in entries]
     else:
+        input_file = args["-f"]
         if input_file:
-            ids = list(load_ids(input_file))
+            all_ids = list(load_ids(input_file))
         else:
-            ids = args['IDS']
-        # Collect all entries first so we can both output and update the file
-        all_entries = list(parse_all_ids(ids))
+            all_ids = args["IDS"]
+        entries = list(parse_all_ids(all_ids))
 
     # Save to database if requested
-    if save_db:
-        save_database(save_db, all_entries)
+    if args["--save-db"]:
+        save_database(args["--save-db"], entries)
 
-    filtered_data = list(filter_ids(iter(all_entries), args['--all'], args['--only-available'], bibfilter))
-    # print(args)
-    if args['--format'] == "plain":
-        plain_print(iter(filtered_data), ids, args["--sort-by"])
-    elif args['--format'] == "html":
-        html_print(iter(filtered_data), ids, args["--sort-by"])
+    # Update input file if requested
+    if args["--update"] and args["-f"]:
+        update_input_file(args["-f"], entries)
 
-    # Update input file with titles (only if we fetched new data)
-    if input_file and not load_db:
-        update_input_file(input_file, all_entries)
+    # Parse filter options
+    bibfilter: List[str] = []
+    if args["--bib"]:
+        bibfilter = [b.strip() for b in args["--bib"].split(",")]
 
+    # Apply filters
+    filtered_entries = filter_ids(
+        entries,
+        all_data=args["--all"],
+        only_available=args["--only-available"],
+        bibfilter=bibfilter,
+    )
+
+    # Output
+    if args["--format"] == "html":
+        html_print(filtered_entries, all_ids, args["--sort-by"])
+    else:
+        plain_print(filtered_entries, all_ids, args["--sort-by"])
+
+
+# Export public API
+__all__ = [
+    "main",
+    "parse_all_ids",
+    "parse_id",
+    "load_ids",
+    "filter_ids",
+    "plain_print",
+    "html_print",
+    "save_database",
+    "load_database",
+    "update_input_file",
+    "PARSERS",
+]
 
 
 if __name__ == "__main__":
