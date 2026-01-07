@@ -10,6 +10,8 @@ options:
     -f=FILE             input file with all the IDs to supervise.
                         format will ignore all lines starting with hash-sign
                         input file will ignore all IDs given via cli
+    --save-db=FILE      save parsed data as JSON to database file
+    --load-db=FILE      load data from JSON database instead of fetching
 
 input file format example:
 
@@ -22,6 +24,7 @@ input file format example:
     # ende
 
 """
+import json
 from bs4 import BeautifulSoup
 from pprint import pprint
 import requests  # type: ignore[import-untyped]
@@ -292,18 +295,43 @@ def html_print(iddata: Iterable[Dict[str, Any]], all_ids: List[str], sort_by: st
 
 
 
+def save_database(filename: str, entries: List[Dict[str, Any]]) -> None:
+    """Save entries to JSON database file."""
+    with open(filename, 'w', encoding='utf-8') as fd:
+        json.dump(entries, fd, ensure_ascii=False, indent=2)
+
+
+def load_database(filename: str) -> List[Dict[str, Any]]:
+    """Load entries from JSON database file."""
+    with open(filename, 'r', encoding='utf-8') as fd:
+        data: List[Dict[str, Any]] = json.load(fd)
+    return data
+
+
 def main() -> None:
     args = docopt(__doc__)
     bibfilter = args['--bib'].split(',') if args['--bib'] else []
 
     input_file = args['-f']
-    if input_file:
-        ids = list(load_ids(input_file))
+    load_db = args['--load-db']
+    save_db = args['--save-db']
+
+    # Load data either from database or by fetching
+    if load_db:
+        all_entries = load_database(load_db)
+        ids = [e.get('id', '') for e in all_entries]
     else:
-        ids = args['IDS']
-    # print(ids)
-    # Collect all entries first so we can both output and update the file
-    all_entries = list(parse_all_ids(ids))
+        if input_file:
+            ids = list(load_ids(input_file))
+        else:
+            ids = args['IDS']
+        # Collect all entries first so we can both output and update the file
+        all_entries = list(parse_all_ids(ids))
+
+    # Save to database if requested
+    if save_db:
+        save_database(save_db, all_entries)
+
     filtered_data = list(filter_ids(iter(all_entries), args['--all'], args['--only-available'], bibfilter))
     # print(args)
     if args['--format'] == "plain":
@@ -311,8 +339,8 @@ def main() -> None:
     elif args['--format'] == "html":
         html_print(iter(filtered_data), ids, args["--sort-by"])
 
-    # Update input file with titles
-    if input_file:
+    # Update input file with titles (only if we fetched new data)
+    if input_file and not load_db:
         update_input_file(input_file, all_entries)
 
 

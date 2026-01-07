@@ -11,7 +11,8 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python3;
-        bibchecker = python.pkgs.buildPythonApplication {
+        doallScript = ./bin/doall.sh;
+        bibchecker-python = python.pkgs.buildPythonApplication {
           pname = "bibchecker";
           version = "0.1.0";
           src = ./.;
@@ -27,6 +28,18 @@
           ];
           checkPhase = ''
             mypy bibchecker
+          '';
+        };
+        bibchecker = pkgs.symlinkJoin {
+          name = "bibchecker-wrapped";
+          paths = [ bibchecker-python ];
+          buildInputs = [ pkgs.makeWrapper ];
+          postBuild = ''
+            mkdir -p $out/bin
+            cp ${doallScript} $out/bin/doall.sh
+            chmod +x $out/bin/doall.sh
+            wrapProgram $out/bin/doall.sh \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ bibchecker-python pkgs.jq ]}
           '';
         };
       in
