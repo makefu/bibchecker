@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bibchecker"
+version = "0.1.0"
+description = "Checks Stuttgart stadtbibliothek and Mediathek Remseck"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "makefu", email = "github@syntax-fehler.de" }
+]
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Topic :: Utilities",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "beautifulsoup4",
+    "requests",
+    "docopt",
+]
+
+[project.optional-dependencies]
+dev = ["mypy"]
+
+[project.scripts]
+bibchecker = "bibchecker.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/makefu/bibchecker"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.mypy]
+warn_redundant_casts = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true

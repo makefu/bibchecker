@@ -1,6 +1,6 @@
 #!/bin/sh
 set -euf
-mybibs="Bad Cannstatt,Feuerbach,Freiberg,Neugereut,Ost,Stadtbibliothek am Mailänder Platz,Zuffenhausen"
+mybibs="Bad Cannstatt,Feuerbach,Freiberg,Neugereut,Ost,Stadtbibliothek am Mailänder Platz,Zuffenhausen,Mediathek im KUBUS"
 infile=${1:-STUFF}
 outdir=${2:-out}
 cachefile=$outdir/cache.json
