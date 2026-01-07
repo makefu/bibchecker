@@ -32,17 +32,30 @@ from docopt import docopt
 from typing import Iterable, Dict, Any, Optional, Generator, List
 from collections import defaultdict
 
-#url="https://opac.sbs.stuttgart.de/aDISWeb/app?service=direct/0/Home/$DirectLink&sp=SOPAC&sp={id}"
-url="https://stadtbibliothek-stuttgart.de/aDISWeb/app?service=direct%2F0%2FHome%2F%24DirectLink&sp=SOPAC&sp={id}"
+# Stuttgart library URL
+url_stuttgart = "https://stadtbibliothek-stuttgart.de/aDISWeb/app?service=direct%2F0%2FHome%2F%24DirectLink&sp=SOPAC&sp={id}"
+# Remseck library URL
+url_remseck = "https://mt-remseck.lmscloud.net/cgi-bin/koha/opac-detail.pl?biblionumber={id}"
 
-def parse_all_ids(ids:Iterable[str] ) -> Iterable[Dict[str,Any]]:
+
+def parse_all_ids(ids: Iterable[str]) -> Iterable[Dict[str, Any]]:
     for id in ids:
         yield parseid(id)
 
+
 def parseid(ident: str) -> Dict[str, Any]:
-    entry: Dict[str, Any] = {"id": ident}
-    #print(url.format(id=ident))
-    ret = requests.get(url.format(id=ident))
+    """Parse an ID - routes to Stuttgart or Remseck parser based on ID format."""
+    # Numeric-only IDs are Remseck, SAK/AK are Stuttgart
+    if ident.isdigit():
+        return parseid_remseck(ident)
+    else:
+        return parseid_stuttgart(ident)
+
+
+def parseid_stuttgart(ident: str) -> Dict[str, Any]:
+    """Parse Stuttgart library entry."""
+    entry: Dict[str, Any] = {"id": ident, "library": "stuttgart"}
+    ret = requests.get(url_stuttgart.format(id=ident))
     data = BeautifulSoup(ret.text, features="html.parser")
     tab = data.find("table", {"class": "gi"})
     if tab is not None:
@@ -64,7 +77,6 @@ def parseid(ident: str) -> Dict[str, Any]:
                     entry[left] = right
             except:
                 pass
-            #print(row)
     tab = data.find("table", {"class": "rTable_table"})
     av: List[Dict[str, Any]] = []
     row_mapping = {
@@ -91,7 +103,6 @@ def parseid(ident: str) -> Dict[str, Any]:
                     item[available_rows[idx]] = col.get_text().strip()
                 available = item.get('available', '')
 
-                # available.startswith("Heute zurückgebucht")
                 if available.startswith("Ausgeliehen") or \
                    available.startswith("Ist nur vor Ort nutzbar") or \
                    available.startswith("Nicht im Regal") or \
@@ -105,27 +116,112 @@ def parseid(ident: str) -> Dict[str, Any]:
                 av.append(item)
 
     entry['status'] = av
+    return entry
 
+
+def parseid_remseck(ident: str) -> Dict[str, Any]:
+    """Parse Remseck library entry."""
+    entry: Dict[str, Any] = {"id": ident, "library": "remseck"}
+    ret = requests.get(url_remseck.format(id=ident))
+    data = BeautifulSoup(ret.text, features="html.parser")
+
+    # Get title from h1.title
+    title_elem = data.find("h1", {"class": "title"})
+    if title_elem:
+        # Get text but exclude hidden elements
+        title_text = title_elem.get_text(separator=" ", strip=True)
+        # Clean up the title (remove author part after /)
+        if " / " in title_text:
+            entry["Titel"], entry["TitelExtra"] = title_text.split(" / ", 1)
+        else:
+            entry["Titel"] = title_text
+
+    # Get holdings from table#holdingst
+    av: List[Dict[str, Any]] = []
+    holdings_table = data.find("table", {"id": "holdingst"})
+    if holdings_table:
+        tbody = holdings_table.find("tbody")
+        if tbody:
+            for row in tbody.find_all("tr"):
+                item: Dict[str, Any] = {}
+
+                # Get library/location from td.location
+                loc_cell = row.find("td", {"class": "location"})
+                if loc_cell:
+                    # Library name is in the anchor with class library_info
+                    lib_link = loc_cell.find("a", {"class": "library_info"})
+                    if lib_link:
+                        item["bib"] = lib_link.get_text(strip=True).replace("\n", " ").strip()
+                        # Remove the info icon text
+                        if item["bib"].startswith("ⓘ"):
+                            item["bib"] = item["bib"][1:].strip()
+
+                    # Standort/shelving location
+                    shelf = loc_cell.find("span", {"class": "shelvingloc"})
+                    if shelf:
+                        item["standort"] = shelf.get_text(strip=True)
+
+                # Get call number/signature
+                callno_cell = row.find("td", {"class": "call_no"})
+                if callno_cell:
+                    item["sig"] = callno_cell.get_text(strip=True).split("(")[0].strip()
+
+                # Get status
+                status_cell = row.find("td", {"class": "status"})
+                if status_cell:
+                    status_span = status_cell.find("span", {"class": "item-status"})
+                    if status_span:
+                        item["available"] = status_span.get_text(strip=True)
+                    else:
+                        # Check for InStock schema
+                        instock = status_cell.find("link", {"href": "http://schema.org/InStock"})
+                        if instock:
+                            item["available"] = "Verfügbar"
+                        else:
+                            item["available"] = "Unbekannt"
+
+                # Get due date
+                duedate_cell = row.find("td", {"class": "date_due"})
+                if duedate_cell:
+                    duedate = duedate_cell.get_text(strip=True)
+                    if duedate and item.get("available"):
+                        item["available"] = f"{item['available']} - Fällig am: {duedate}"
+
+                # Determine if can be borrowed
+                avail_text = item.get('available', '')
+                if "Ausgeliehen" in avail_text or \
+                   "checkedout" in avail_text.lower() or \
+                   "OutOfStock" in str(status_cell):
+                    item['can_be_borrowed'] = False
+                else:
+                    item['can_be_borrowed'] = True
+
+                av.append(item)
+
+    entry['status'] = av
     return entry
 
 def load_ids(f: str) -> Generator[str, None, None]:
     with open(f) as fd:
         for line in fd.readlines():
-            line = line.split(" ")[0].upper().strip()
-            if line.startswith("#"):
+            raw_line = line.split(" ")[0].strip()
+            line_upper = raw_line.upper()
+            if line_upper.startswith("#"):
                 continue
-            elif not line:
+            elif not raw_line:
                 continue
-            elif line.startswith("AK"):
-                line = f"S{line}"
-                yield line
-            elif line.startswith('javascript:htmlOnLink'):
-                line = line.split("'")[1]
-                yield line
-            elif not line.startswith("SAK"):
-                print("cannot parse line '{line}' - not starting with SAK or AK")
+            elif raw_line.isdigit():
+                # Numeric ID = Remseck library
+                yield raw_line
+            elif line_upper.startswith("AK"):
+                line_upper = f"S{line_upper}"
+                yield line_upper
+            elif line_upper.startswith('JAVASCRIPT:HTMLONLINK'):
+                yield raw_line.split("'")[1]
+            elif line_upper.startswith("SAK"):
+                yield line_upper
             else:
-                yield line
+                print(f"cannot parse line '{raw_line}' - not starting with SAK, AK, or numeric ID")
 def filter_ids(iddata: Iterable[Dict[str, Any]], all_data: bool = False, only_available: bool = False, bibfilter: Optional[List[str]] = None) -> Generator[Dict[str, Any], None, None]:
     if not bibfilter:
         bibfilter = []
