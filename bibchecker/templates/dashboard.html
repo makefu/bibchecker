@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>bibchecker Web</title>
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --border: #d9dde6;
+            --text: #1f2933;
+            --muted: #5f6b7a;
+            --accent: #3056d3;
+        }
+        body { margin: 0; padding: 32px; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 12px 0; }
+        h2 { margin: 20px 0 10px 0; }
+        p { color: var(--muted); margin: 4px 0 12px 0; }
+        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 18px; }
+        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+        textarea { width: 100%; min-height: 400px; font-family: monospace; border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+        button { background: var(--accent); color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
+        button.secondary { background: #e5e8f0; color: #2a3140; }
+        ul { padding-left: 18px; margin: 8px 0; }
+        li { margin-bottom: 6px; }
+        .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; background: #eef1f7; color: var(--text); font-size: 12px; margin-right: 4px; margin-bottom: 4px; }
+        .flash { background: #f0f4ff; border: 1px solid #d8e0ff; color: #122063; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    <h1>bibchecker Web</h1>
+    <p>Bearbeite deine STUFF-Datei und aktualisiere die Reports auf Knopfdruck. Tägliche Aktualisierung läuft um {{ refresh_time }} Uhr.</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for msg in messages %}
+                <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="panel meta">
+        <div><strong>Eingabe:</strong> {{ input_file }}</div>
+        <div><strong>Ausgabe:</strong> {{ output_dir }}</div>
+        <div><strong>Cache:</strong> {{ cache_file }}</div>
+        <div><strong>Meine Bibliotheken:</strong><br>{% for bib in my_bibs %}<span class="tag">{{ bib }}</span>{% endfor %}</div>
+        <div><strong>Letzte Aktualisierung:</strong> {{ last_refresh.refreshed_at.strftime('%d.%m.%Y %H:%M') if last_refresh else 'noch nie' }}</div>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <h2>STUFF bearbeiten</h2>
+            <form method="post" action="{{ url_for('save_input') }}">
+                <textarea name="content">{{ input_text }}</textarea>
+                <div style="margin-top:10px; display:flex; gap:8px;">
+                    <button type="submit">Speichern</button>
+                    <button type="button" class="secondary" onclick="window.location.reload()">Neu laden</button>
+                </div>
+            </form>
+        </div>
+        <div>
+            <div class="panel">
+                <h2>Berichte</h2>
+                <form method="post" action="{{ url_for('refresh') }}">
+                    <button type="submit" style="width:100%;">Berichte jetzt erstellen</button>
+                </form>
+                <p style="margin-top:10px;">Die Berichte werden täglich automatisch um {{ refresh_time }} Uhr neu erstellt.</p>
+                <h3>Generierte Dateien</h3>
+                {% if last_refresh %}
+                    <p style="color:#5f6b7a; margin:4px 0 10px 0;">Stand: {{ last_refresh.refreshed_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                {% endif %}
+                <ul>
+                    {% for item in generated %}
+                        <li>
+                            <a href="{{ url_for('serve_file', filename=item.name) }}" target="_blank">{{ item.description }}
+                            — {{ item.scope }} </a>
+                        </li>
+                    {% else %}
+                        <li>Noch keine Dateien erzeugt.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

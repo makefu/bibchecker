@@ -22,6 +22,8 @@
             beautifulsoup4
             requests
             docopt
+            flask
+            apscheduler
           ];
           nativeBuildInputs = with python.pkgs; [
             mypy
@@ -31,7 +33,7 @@
           '';
         };
         bibchecker = pkgs.symlinkJoin {
-          name = "bibchecker-wrapped";
+          name = "bibchecker-with-scripts";
           paths = [ bibchecker-python ];
           buildInputs = [ pkgs.makeWrapper ];
           postBuild = ''
@@ -40,6 +42,7 @@
             chmod +x $out/bin/doall.sh
             wrapProgram $out/bin/doall.sh \
               --prefix PATH : ${pkgs.lib.makeBinPath [ bibchecker-python pkgs.jq ]}
+
           '';
         };
       in
@@ -52,6 +55,8 @@
             python
             beautifulsoup4
             requests
+            flask
+            apscheduler
             docopt
             mypy
           ];

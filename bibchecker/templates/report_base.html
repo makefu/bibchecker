@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --border: #e1e4ea;
+            --text: #1f2933;
+            --muted: #5f6b7a;
+            --accent: #3056d3;
+            --good: #1b9b4c;
+            --bad: #c2353a;
+        }
+        body { margin: 0; padding: 24px; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); }
+        h1 { margin: 0 0 6px 0; font-size: 26px; }
+        h2 { margin: 18px 0 8px 0; font-size: 18px; }
+        p { margin: 4px 0 12px 0; color: var(--muted); }
+        table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); }
+        th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+        th { background: #f0f2f7; font-weight: 600; }
+        tr:hover td { background: #f9fafc; }
+        .title-cell { font-weight: 600; }
+        .ok { color: var(--good); font-weight: 600; }
+        .no { color: var(--bad); font-weight: 600; }
+        .ts { margin-top: 14px; color: var(--muted); font-size: 13px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e8ecf5; color: var(--accent); font-size: 12px; }
+        .meta-line { margin: 0 0 10px 0; color: var(--muted); font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="meta-line">Stand: {{ timestamp.strftime('%d.%m.%Y %H:%M') }}{% if info_line %} — {{ info_line }}{% endif %}</div>
+    <h1>{{ title }}</h1>
+    {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+    {% block content %}{% endblock %}
+</body>
+</html>

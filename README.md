@@ -31,8 +31,7 @@ nix run github:makefu/bibchecker -- SAK02068634
 
 Install Python dependencies and run:
 ```sh
-pip install beautifulsoup4 requests docopt
-python setup.py develop
+pip install -e .
 bibchecker SAK02068634
 ```
 
@@ -117,6 +116,32 @@ Generated files:
 - `all_items.html` - All media sorted by title
 - `all_bib.html` - All media sorted by library
 - `<LibraryName>.html` - Per-library availability reports
+
+## Web Application (Flask)
+
+There is a small web UI to edit the input file and trigger report generation without shell scripts.
+
+Start the server (installs dependencies from `pyproject.toml`):
+
+```sh
+pip install -e .
+bibchecker-web
+# or: flask --app bibchecker.webapp run
+```
+
+Key routes and behavior:
+- `/` shows the STUFF contents, lets you save edits, and provides a "refresh" button.
+- `/refresh` (POST) regenerates all HTML reports using Jinja templates.
+- `/files/<name>` serves the generated files from the output directory.
+- A daily refresh runs automatically at 04:00 by default.
+
+Environment variables:
+- `BIB_INPUT_FILE` (default: `STUFF`)
+- `BIB_OUTPUT_DIR` (default: `out`)
+- `BIB_CACHE_FILE` (default: `out/cache.json`)
+- `BIBCHECKER_MYBIBS` (comma-separated list; default matches `doall.sh`)
+- `BIBCHECKER_REFRESH_TIME` (HH:MM, 24h; default `04:00`)
+- `FLASK_HOST` / `FLASK_PORT` to adjust the bind address
 
 ## Supported Libraries
 

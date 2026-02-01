@@ -1,0 +1,22 @@
+{% extends "report_base.html" %}
+{% block content %}
+<table>
+    <tr><th>Datei</th><th>Beschreibung</th><th>Inhalt</th></tr>
+    {% for item in generated %}
+        <tr>
+            <td><a href="{{ item.name }}">{{ item.name }}</a></td>
+            <td>{{ item.description }}</td>
+            <td>{{ item.scope }}</td>
+        </tr>
+    {% endfor %}
+</table>
+
+{% if per_bib %}
+    <h2>Nach Bibliothek</h2>
+    <ul>
+        {% for bib in per_bib %}
+            <li><a href="{{ bib }}.html">{{ bib }}</a></li>
+        {% endfor %}
+    </ul>
+{% endif %}
+{% endblock %}

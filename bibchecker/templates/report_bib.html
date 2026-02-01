@@ -1,0 +1,21 @@
+{% extends "report_base.html" %}
+{% block content %}
+{% for bib, items in grouped %}
+    <h2>{{ bib }}</h2>
+    <table>
+        <tr>
+            <th>Titel</th>
+            <th>Standort</th>
+            <th>Status</th>
+        </tr>
+        {% for item in items %}
+            <tr>
+                <td class="title-cell">{{ item.entry.get('Titel', 'Unbekannt') }}</td>
+                <td>{{ item.status.get('standort') or '-' }}</td>
+                {% set cls = 'ok' if item.status.get('can_be_borrowed') else 'no' %}
+                <td class="{{ cls }}">{{ item.status.get('available', '?') }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+{% endfor %}
+{% endblock %}

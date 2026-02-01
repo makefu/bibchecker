@@ -1,0 +1,32 @@
+{% extends "report_base.html" %}
+{% block content %}
+<table>
+    <tr>
+        <th>Titel</th>
+        <th>Bibliothek</th>
+        <th>Standort</th>
+        <th>Status</th>
+    </tr>
+    {% for entry in entries %}
+        {% set statuses = entry.get('status', []) %}
+        {% if statuses %}
+            {% for status in statuses %}
+                <tr>
+                    {% if loop.first %}
+                        <td class="title-cell" rowspan="{{ statuses|length }}">{{ entry.get('Titel', 'Unbekannt') }}</td>
+                    {% endif %}
+                    <td>{{ status.get('bib', '-') }}</td>
+                    <td>{{ status.get('standort') or '-' }}</td>
+                    {% set cls = 'ok' if status.get('can_be_borrowed') else 'no' %}
+                    <td class="{{ cls }}">{{ status.get('available', '?') }}</td>
+                </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td class="title-cell">{{ entry.get('Titel', 'Unbekannt') }}</td>
+                <td colspan="3" class="no">Keine Daten</td>
+            </tr>
+        {% endif %}
+    {% endfor %}
+</table>
+{% endblock %}

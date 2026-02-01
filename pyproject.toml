@@ -29,6 +29,8 @@ dependencies = [
     "beautifulsoup4",
     "requests",
     "docopt",
+    "flask",
+    "apscheduler",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +38,7 @@ dev = ["mypy"]
 
 [project.scripts]
 bibchecker = "bibchecker.cli:main"
+bibchecker-web = "bibchecker.webapp:main"
 
 [project.urls]
 Homepage = "https://github.com/makefu/bibchecker"
