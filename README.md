@@ -12,6 +12,9 @@ Check availability of media at Stadtbibliothek Stuttgart and Mediathek Remseck.
 - Cache results to JSON for faster subsequent queries
 - Batch processing with input files
 - Automatic update of input files with fetched titles
+- Web UI for editing the input file, triggering report generation, and downloading the latest reports
+- Generated HTML links each title to the corresponding library catalog page (Stuttgart or Remseck)
+- Daily auto-refresh (configurable) plus manual refresh endpoint/button
 
 ## Installation
 
@@ -135,6 +138,12 @@ Key routes and behavior:
 - `/files/<name>` serves the generated files from the output directory.
 - A daily refresh runs automatically at 04:00 by default.
 
+Report output (HTML):
+- Overview pages first: `all_items.html` (all items by title) and `all_bib.html` (grouped by bib)
+- Then `mybibs.html` (only available items for your preferred libraries)
+- Then per-bibliothek pages with only available items (your preferred bibs first, then the rest)
+- Each title links back to its catalog page; top meta line shows the refresh timestamp and scope ("Alle Exemplare" vs "Nur verfügbare Exemplare").
+
 Environment variables:
 - `BIB_INPUT_FILE` (default: `STUFF`)
 - `BIB_OUTPUT_DIR` (default: `out`)
@@ -142,6 +151,7 @@ Environment variables:
 - `BIBCHECKER_MYBIBS` (comma-separated list; default matches `doall.sh`)
 - `BIBCHECKER_REFRESH_TIME` (HH:MM, 24h; default `04:00`)
 - `FLASK_HOST` / `FLASK_PORT` to adjust the bind address
+- `FLASK_SECRET_KEY` to override the default dev secret
 
 ## Supported Libraries
 
