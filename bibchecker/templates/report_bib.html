@@ -10,7 +10,13 @@
         </tr>
         {% for item in items %}
             <tr>
-                <td class="title-cell">{{ item.entry.get('Titel', 'Unbekannt') }}</td>
+                <td class="title-cell">
+                    {% if item.entry.get('catalog_url') %}
+                        <a href="{{ item.entry.get('catalog_url') }}" target="_blank">{{ item.entry.get('Titel', 'Unbekannt') }}</a>
+                    {% else %}
+                        {{ item.entry.get('Titel', 'Unbekannt') }}
+                    {% endif %}
+                </td>
                 <td>{{ item.status.get('standort') or '-' }}</td>
                 {% set cls = 'ok' if item.status.get('can_be_borrowed') else 'no' %}
                 <td class="{{ cls }}">{{ item.status.get('available', '?') }}</td>

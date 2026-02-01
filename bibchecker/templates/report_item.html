@@ -13,7 +13,13 @@
             {% for status in statuses %}
                 <tr>
                     {% if loop.first %}
-                        <td class="title-cell" rowspan="{{ statuses|length }}">{{ entry.get('Titel', 'Unbekannt') }}</td>
+                        <td class="title-cell" rowspan="{{ statuses|length }}">
+                            {% if entry.get('catalog_url') %}
+                                <a href="{{ entry.get('catalog_url') }}" target="_blank">{{ entry.get('Titel', 'Unbekannt') }}</a>
+                            {% else %}
+                                {{ entry.get('Titel', 'Unbekannt') }}
+                            {% endif %}
+                        </td>
                     {% endif %}
                     <td>{{ status.get('bib', '-') }}</td>
                     <td>{{ status.get('standort') or '-' }}</td>

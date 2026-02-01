@@ -50,6 +50,8 @@ class StuttgartParser(LibraryParser):
     def parse(cls, ident: str) -> Dict[str, Any]:
         """Parse Stuttgart library entry."""
         entry = cls.create_entry(ident)
+        entry["catalog_id"] = ident.strip()
+        entry["catalog_url"] = cls.url_template.format(id=ident.strip())
         data = cls.fetch_page(ident)
 
         # Parse metadata from info table
