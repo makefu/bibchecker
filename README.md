@@ -14,9 +14,10 @@ SAK02068634: Hello World : Was Algorithmen können und wie sie unser Leben verä
 ```
 
 ## Other OS
-install the python libraries `beautifulsoup4` `requests` `docopt` for
-python38, run `python setup.py develop && bibchecker SAK02068634`
 
+Install `setuptools` python dependency.
+To build and install run the command: `python setup.py develop`
+For testing you can execute `bibchecker SAK02068634`.
 
 # License
 MIT ( see LICENSE)

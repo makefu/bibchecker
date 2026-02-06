@@ -1,8 +1,6 @@
 
 #!/usr/bin/env python3
 
-import sys
-
 from setuptools import find_packages, setup
 
 setup(
@@ -19,6 +17,11 @@ setup(
             "bibchecker = bibchecker:main",
         ]
     },
+    install_requires=[
+        "beautifulsoup4",
+        "requests",
+        "docopt"
+    ],
     extras_require={"dev": ["mypy"]},
     classifiers=[
         "Development Status :: 5 - Production/Stable",
