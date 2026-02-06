@@ -34,6 +34,7 @@ nix run github:makefu/bibchecker -- SAK02068634
 
 Install Python dependencies and run:
 ```sh
+# optional: python -m venv . && . bin/activate
 pip install -e .
 bibchecker SAK02068634
 ```
@@ -123,10 +124,14 @@ Generated files:
 ## Web Application (Flask)
 
 There is a small web UI to edit the input file and trigger report generation without shell scripts.
+Attention: no authentication is added, the service should never be exposed to the internet.
+
+![bibchecker-web screenshot](./doc/bibchecker-web.png)
 
 Start the server (installs dependencies from `pyproject.toml`):
 
 ```sh
+# optional: python -m venv . && . bin/activate
 pip install -e .
 bibchecker-web
 # or: flask --app bibchecker.webapp run
