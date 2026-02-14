@@ -16,6 +16,9 @@
                     {% else %}
                         {{ item.entry.get('Titel', 'Unbekannt') }}
                     {% endif %}
+                    {% if item.entry.get('user_description') %}
+                        <div class="meta-line">{{ item.entry.get("user_description") }}</div>
+                    {% endif %}
                 </td>
                 <td>{{ item.status.get('standort') or '-' }}</td>
                 {% set cls = 'ok' if item.status.get('can_be_borrowed') else 'no' %}

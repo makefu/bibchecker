@@ -20,6 +20,22 @@ def load_ids(f: str) -> Generator[str, None, None]:
                 print(f"cannot parse line '{raw_line}' - unknown ID format")
 
 
+def load_user_description(f: str) -> Generator[tuple[str, str], None, None]:
+    """Load user description from an input file."""
+    with open(f) as fd:
+        for line in fd.readlines():
+            raw_line = line.split(" ")[0].strip()
+            if not raw_line or raw_line.startswith("#"):
+                continue
+
+            # Try to normalize the ID
+            normalized = normalize_id(raw_line)
+            if normalized:
+                yield normalized, ' '.join(line.split()[1:]) if ' ' in line else None
+            else:
+                print(f"cannot parse line '{raw_line}' - unknown ID format")
+
+
 def update_input_file(filename: str, entries: List[Dict[str, Any]]) -> None:
     """Update the input file with titles from parsed entries."""
     # Build a mapping from ID to title

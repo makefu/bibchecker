@@ -101,6 +101,7 @@ def _html_by_item(iddata: Iterable[Dict[str, Any]]) -> List[str]:
     for entry in iddata:
         title = entry.get("Titel", "Unbekannt")
         catalog_url = entry.get("catalog_url")
+        user_description = f'<div class="loc">{entry.get("user_description")}</div>' if entry.get("user_description") else ''
         statuses = entry.get("status", [])
         if statuses:
             for i, av in enumerate(statuses):
@@ -110,7 +111,7 @@ def _html_by_item(iddata: Iterable[Dict[str, Any]]) -> List[str]:
                 cls = "ok" if av.get("can_be_borrowed") else "no"
                 if i == 0:
                     parts.append(
-                        f'<tr><td class="title" rowspan="{len(statuses)}"><a href="{catalog_url}">{title}</a></td>'
+                        f'<tr><td class="title" rowspan="{len(statuses)}"><a href="{catalog_url}">{title}</a>{user_description}</td>'
                         f'<td class="first">{bib}</td><td class="first loc">{loc}</td>'
                         f'<td class="first {cls}">{avail}</td></tr>\n'
                     )
@@ -149,11 +150,12 @@ def _html_by_library(iddata: Iterable[Dict[str, Any]]) -> List[str]:
             entry = item.get("entry", {})
             title = entry.get("Titel", "Unbekannt")
             catalog_url = entry.get("catalog_url")
+            user_description = f'<div class="loc">{entry.get("user_description")}</div>' if entry.get("user_description") else ''
             loc = item.get("standort") or "-"
             avail = item.get("available", "?")
             cls = "ok" if item.get("can_be_borrowed") else "no"
             parts.append(
-                f'<tr><td class="title"><a href="{catalog_url}">{title}</a></td><td>-</td>'
+                f'<tr><td class="title"><a href="{catalog_url}">{title}</a>{user_description}</td><td>-</td>'
                 f'<td class="loc">{loc}</td><td class="{cls}">{avail}</td></tr>\n'
             )
     return parts
