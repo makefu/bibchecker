@@ -19,6 +19,9 @@
                             {% else %}
                                 {{ entry.get('Titel', 'Unbekannt') }}
                             {% endif %}
+                            {% if entry.get('user_description') %}
+                                <div class="meta-line">{{ entry.get("user_description") }}</div>
+                            {% endif %}
                         </td>
                     {% endif %}
                     <td>{{ status.get('bib', '-') }}</td>
