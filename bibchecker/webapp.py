@@ -23,7 +23,7 @@ from flask.typing import ResponseReturnValue
 
 from bibchecker.database import save_database
 from bibchecker.filters import filter_ids
-from bibchecker.input import load_ids
+from bibchecker.input import load_ids, load_user_description
 from bibchecker.parsers import parse_id
 
 
@@ -141,6 +141,9 @@ def _refresh_reports(app: Flask) -> RefreshResult:
 
     ids = list(load_ids(str(input_file)))
     entries = _parse_entries(ids)
+    user_descriptions = dict(load_user_description(str(input_file)))
+    for entry in entries:
+        entry['user_description'] = user_descriptions[entry['id']]
 
     save_database(str(cache_file), entries)
 

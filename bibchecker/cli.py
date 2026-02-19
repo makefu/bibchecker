@@ -34,7 +34,7 @@ from bibchecker.parsers import parse_id, PARSERS
 from bibchecker.output import plain_print, html_print
 from bibchecker.database import save_database, load_database
 from bibchecker.filters import filter_ids
-from bibchecker.input import load_ids, update_input_file
+from bibchecker.input import load_ids, update_input_file, load_user_description
 
 
 def parse_all_ids(ids: List[str]) -> Generator[Dict[str, Any], None, None]:
@@ -62,6 +62,11 @@ def main() -> None:
         else:
             all_ids = args["IDS"]
         entries = list(parse_all_ids(all_ids))
+        if input_file:
+            user_descriptions = dict(load_user_description(input_file))
+            for entry in entries:
+                entry['user_description'] = user_descriptions[entry['id']]
+
 
     # Save to database if requested
     if args["--save-db"]:
